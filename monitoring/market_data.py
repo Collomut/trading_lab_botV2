@@ -35,7 +35,11 @@ class MarketData:
             import ccxt
 
             exchange = getattr(ccxt, self.exchange_name)(
-                {"enableRateLimit": True, "timeout": 25000}
+                {
+                    "enableRateLimit": True,
+                    "timeout": 25000,
+                    "options": {"defaultType": "spot", "fetchMarkets": ["spot"]},
+                }
             )
             urls = exchange.urls.get("api", {})
             if self.exchange_name == "binance" and isinstance(urls, dict) and "public" in urls:
