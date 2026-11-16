@@ -17,7 +17,11 @@ docker run --rm -p 5000:5000 --env-file .env trade_v2
 - Set env in the Railway dashboard, not in the repo.
 - Railway injects `PORT`; the dashboard binds it automatically unless `--port`
   is passed explicitly.
-- Health checks: `/health/liveness` and `/health/readiness`.
+- Health checks: `/health/liveness` and `/health/readiness` (public).
+- Sign in at `/login` with the value of `DASHBOARD_TOKEN`. A successful sign-in
+  sets an HttpOnly, `SameSite=Strict` session cookie (12-hour expiry); scripts
+  can still use `X-Dashboard-Token` or `Authorization: Bearer <token>` instead.
+  Use **Sign out** in the dashboard to revoke the session.
 
 ## Troubleshooting
 
