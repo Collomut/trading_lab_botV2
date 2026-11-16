@@ -22,7 +22,9 @@ class MarketData:
     """Small, TTL-cached wrapper around a public CCXT exchange."""
 
     def __init__(self, exchange_name: str = "binance", ttl_seconds: float = 30.0):
-        self.exchange_name = exchange_name
+        self.exchange_name = (exchange_name or "binance").strip().lower()
+        if self.exchange_name not in {"binance", "binanceus"}:
+            self.exchange_name = "binance"
         self.ttl_seconds = ttl_seconds
         self._exchange: Any = None
         self._cache: dict[tuple, tuple[float, dict]] = {}
@@ -33,10 +35,10 @@ class MarketData:
             import ccxt
 
             exchange = getattr(ccxt, self.exchange_name)(
-                {"enableRateLimit": True, "timeout": 12000}
+                {"enableRateLimit": True, "timeout": 25000}
             )
             urls = exchange.urls.get("api", {})
-            if isinstance(urls, dict) and "public" in urls:
+            if self.exchange_name == "binance" and isinstance(urls, dict) and "public" in urls:
                 urls["public"] = PUBLIC_BINANCE_API
             self._exchange = exchange
         return self._exchange
@@ -92,38 +94,16 @@ class MarketData:
         exchange = self._get_exchange()
         quotes: dict[str, dict] = {}
         candles: dict[str, list] = {}
-
-        tickers: dict[str, dict] = {}
-        try:
-            result = exchange.fetch_tickers(symbols)
-            if isinstance(result, dict):
-                tickers = result
-        except Exception:
-            tickers = {}
+        errors: list[str] = []
 
         for symbol in symbols:
-            ticker = tickers.get(symbol) or {}
-            if not ticker:
-                try:
-                    ticker = exchange.fetch_ticker(symbol) or {}
-                except Exception:
-                    ticker = {}
-            if ticker:
-                last = _as_float(ticker.get("last"))
-                previous = _as_float(ticker.get("previousClose")) or _as_float(ticker.get("open"))
-                if last is not None and last > 0:
-                    quotes[symbol] = {
-                        "last": last,
-                        "change_pct": _change_pct(last, previous),
-                        "high": _as_float(ticker.get("high")),
-                        "low": _as_float(ticker.get("low")),
-                        "volume": _as_float(ticker.get("quoteVolume"))
-                        or _as_float(ticker.get("volume")),
-                    }
-
+            # Derive the quote from the latest candle (one request per symbol)
+            # instead of an extra bulk-ticker call. 24h change comes from the
+            # ticker when available, but candles alone keep the chart working.
             try:
                 rows = exchange.fetch_ohlcv(symbol, timeframe, limit=limit) or []
-            except Exception:
+            except Exception as exc:
+                errors.append(f"{symbol} ohlcv: {type(exc).__name__}: {str(exc)[:160]}")
                 rows = []
             parsed = []
             for row in rows:
@@ -138,12 +118,35 @@ class MarketData:
             if parsed:
                 candles[symbol] = parsed
 
-        return {
+            try:
+                ticker = exchange.fetch_ticker(symbol) or {}
+            except Exception as exc:
+                errors.append(f"{symbol} ticker: {type(exc).__name__}: {str(exc)[:160]}")
+                ticker = {}
+            last = _as_float(ticker.get("last"))
+            if last is None and parsed:
+                last = parsed[-1][4]
+            previous = _as_float(ticker.get("previousClose")) or _as_float(ticker.get("open"))
+            if last is not None and last > 0:
+                quotes[symbol] = {
+                    "last": last,
+                    "change_pct": _change_pct(last, previous),
+                    "high": _as_float(ticker.get("high")),
+                    "low": _as_float(ticker.get("low")),
+                    "volume": _as_float(ticker.get("quoteVolume"))
+                    or _as_float(ticker.get("volume")),
+                }
+
+        payload = {
             "source": "live" if (quotes or candles) else "unavailable",
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "quotes": quotes,
             "candles": candles,
         }
+        if errors:
+            logger.warning("market fetch errors: %s", " | ".join(errors[:6]))
+            payload["error"] = errors[0]
+        return payload
 
     def last_price(self, symbol: str) -> float | None:
         """Return the freshest cached price for ``symbol`` without network I/O."""
