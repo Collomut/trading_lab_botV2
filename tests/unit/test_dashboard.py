@@ -257,6 +257,67 @@ def test_login_ignores_origin_but_writes_are_protected(app_ctx):
     asyncio.run(run())
 
 
+def test_status_includes_dashboard_payload(app_ctx):
+    dash, _, _ = app_ctx
+    app = dash.create_app()
+    from aiohttp.test_utils import TestClient, TestServer
+
+    async def run():
+        client = TestClient(TestServer(app))
+        await client.start_server()
+        try:
+            resp = await client.get("/api/status", headers={"X-Dashboard-Token": "t" * 40})
+            body = await resp.json()
+            assert body["pairs"] == ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
+            assert body["timeframe"] == "1h"
+            assert "risk" in body and "config" in body
+            assert "daily_loss" in body["risk"]
+            assert body["config"]["environment"] == "simulated"
+        finally:
+            await client.close()
+
+    asyncio.run(run())
+
+
+def test_market_and_activity_endpoints(app_ctx):
+    dash, _, store = app_ctx
+    store.append_event("risk_halt", {"reason": "test"})
+    async def fake_market(*a, **k):
+        return _fake_snapshot()
+
+    dash.market.snapshot = fake_market
+    app = dash.create_app()
+    from aiohttp.test_utils import TestClient, TestServer
+
+    async def run():
+        client = TestClient(TestServer(app))
+        await client.start_server()
+        try:
+            market = await client.get("/api/market", headers={"X-Dashboard-Token": "t" * 40})
+            m = await market.json()
+            assert m["quotes"]["BTC/USDT"]["last"] == 100.0
+            assert m["candles"]["BTC/USDT"][0][4] == 100.0
+
+            activity = await client.get("/api/activity", headers={"X-Dashboard-Token": "t" * 40})
+            a = await activity.json()
+            assert any(e["event_type"] == "risk_halt" for e in a["events"])
+        finally:
+            await client.close()
+
+    asyncio.run(run())
+
+
+def _fake_snapshot():
+    return {
+        "source": "live",
+        "updated_at": "2026-01-01T00:00:00+00:00",
+        "quotes": {"BTC/USDT": {"last": 100.0, "change_pct": 1.0}},
+        "candles": {"BTC/USDT": [[1704067200000, 99, 101, 98, 100, 10]]},
+        "cache": "hit",
+        "timeframe": "1h",
+    }
+
+
 def test_same_origin_trusts_forwarded_host(app_ctx):
     """Behind a reverse proxy the public host arrives in X-Forwarded-Host."""
     dash, _, _ = app_ctx

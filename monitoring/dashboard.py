@@ -9,12 +9,16 @@ from __future__ import annotations
 
 import hmac
 import logging
+import os
 import secrets
 import time
 from datetime import datetime, timezone
-from string import Template
+from pathlib import Path
 
 from aiohttp import web
+
+from monitoring.dashboard_ui import INDEX_HTML, LOGIN_HTML
+from monitoring.market_data import MarketData
 
 logger = logging.getLogger("trade_v2.dashboard")
 
@@ -23,67 +27,13 @@ logger = logging.getLogger("trade_v2.dashboard")
 SESSION_TTL_SECONDS = 12 * 60 * 60
 SESSION_COOKIE = "dashboard_session"
 
-INDEX_HTML = """<!doctype html>
-<html><head><meta charset="utf-8"><title>trade_v2</title>
-<style>body{font-family:system-ui,sans-serif;margin:24px;background:#0f1115;color:#e6e6e6}
-.card{background:#171a21;border:1px solid #2a2f3a;border-radius:8px;padding:16px;margin:12px 0}
-.k{color:#8b93a7}.v{font-weight:600}button{padding:8px 14px;margin-right:8px;border-radius:6px;border:1px solid #2a2f3a;background:#222833;color:#e6e6e6;cursor:pointer}
-.err{color:#ff6b6b}</style></head>
-<body><h2>trade_v2 — surveillance</h2>
-<div id="status" class="card">Loading…</div>
-<div class="card">
-<button onclick="post('/api/emergency-stop')">Emergency stop</button>
-<button onclick="post('/api/resume')">Resume (reviewed)</button>
-</div>
-<div class="card"><form method="post" action="/logout"><button type="submit">Sign out</button></form></div>
-<script>
-async function load(){const r=await fetch('/api/status');if(r.status===401){location='/login';return}const d=await r.json();
-const el=document.getElementById('status');
-el.innerHTML=`<div><span class="k">Mode:</span> <span class="v">${d.paper_trading?'PAPER':'LIVE'}</span></div>
-<div><span class="k">Halted:</span> <span class="v">${d.halted} ${d.halt_reason||''}</span></div>
-<div><span class="k">Equity:</span> <span class="v">${d.equity??'n/a'}</span></div>
-<div><span class="k">Open positions:</span> <span class="v">${d.open_positions}</span></div>
-<div><span class="k">Profit factor:</span> <span class="v">${d.profit_factor??'n/a'}</span></div>`;
-}
-async function post(path){const r=await fetch(path,{method:'POST'});if(r.status===401){location='/login';return}if(!r.ok){alert('Failed: '+r.status)}load();}
-load();setInterval(load,5000);
-</script></body></html>"""
-
-LOGIN_HTML = Template("""<!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>trade_v2 — sign in</title>
-<style>
-body{font-family:system-ui,sans-serif;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
-background:#0f1115;color:#e6e6e6}
-main{width:min(92vw,380px);background:#171a21;border:1px solid #2a2f3a;border-radius:10px;padding:28px}
-h1{margin:0 0 4px;font-size:22px}.muted{color:#8b93a7;font-size:13px;line-height:1.5}
-label{display:block;margin:22px 0 8px;font-size:14px;font-weight:600}
-input{width:100%;box-sizing:border-box;padding:11px 12px;border-radius:6px;border:1px solid #2a2f3a;
-background:#0f1115;color:#e6e6e6;font-size:14px}
-input:focus{outline:2px solid #4c7dff;outline-offset:1px}
-button{width:100%;margin-top:18px;padding:11px 14px;border-radius:6px;border:1px solid #4c7dff;
-background:#2f5fe0;color:#fff;font-size:14px;font-weight:600;cursor:pointer}
-.err{margin:14px 0 0;padding:10px 12px;border-radius:6px;background:#3a1d22;color:#ff8a8a;font-size:13px}
-</style></head>
-<body><main>
-<h1>trade_v2</h1>
-<p class="muted">Surveillance console. Sign in with the dashboard token configured on the server.</p>
-<form method="post" action="/login">
-<label for="token">Dashboard token</label>
-<input id="token" name="token" type="password" required autofocus autocomplete="current-password" spellcheck="false">
-$error
-<button type="submit">Sign in</button>
-</form>
-<p class="muted" style="margin-top:20px">The token is never stored in the browser; sign-in issues a 12-hour session instead.</p>
-</main></body></html>""")
-
-
 class WebDashboard:
     def __init__(self, config, risk_manager, trader=None):
         self.config = config
         self.risk = risk_manager
         self.trader = trader
         self.token = config.dashboard.dashboard_token
+        self.market = MarketData(config.exchange.name)
         # session id -> expiry (unix timestamp)
         self._sessions: dict[str, float] = {}
 
@@ -201,6 +151,8 @@ class WebDashboard:
         app.router.add_get("/health/liveness", self.handle_liveness)
         app.router.add_get("/health/readiness", self.handle_readiness)
         app.router.add_get("/api/status", self.handle_status)
+        app.router.add_get("/api/market", self.handle_market)
+        app.router.add_get("/api/activity", self.handle_activity)
         app.router.add_post("/api/emergency-stop", self.handle_emergency_stop)
         app.router.add_post("/api/resume", self.handle_resume)
         return app
@@ -277,19 +229,83 @@ class WebDashboard:
 
     async def handle_status(self, request):
         summary = self.risk.get_performance_summary()
+        risk_state = self.risk.state
+        cfg = self.config
+        paper_env = cfg.exchange.paper_environment if cfg.exchange.paper_trading else "live"
         return web.json_response(
             {
-                "paper_trading": self.config.exchange.paper_trading,
-                "halted": self.risk.state.halted,
-                "halt_reason": self.risk.state.halt_reason,
+                "paper_trading": cfg.exchange.paper_trading,
+                "halted": risk_state.halted,
+                "halt_reason": risk_state.halt_reason,
                 "entry_mode": self.risk.entry_mode(),
                 "open_positions": len(self.risk.open_positions),
                 "positions": {s: p.to_dict() for s, p in self.risk.open_positions.items()},
+                "equity": risk_state.rolling_peak_equity
+                or risk_state.daily_starting_equity
+                or None,
                 "daily_pnl": summary.get("daily_pnl"),
                 "profit_factor": summary.get("profit_factor"),
                 "win_rate": summary.get("win_rate"),
                 "route_halts": self.risk.route_halts(),
+                "pairs": list(cfg.strategy.trading_pairs),
+                "timeframe": cfg.strategy.timeframe,
+                "performance": summary,
+                "risk": {
+                    "daily_loss": risk_state.daily_loss,
+                    "daily_starting_equity": risk_state.daily_starting_equity,
+                    "rolling_peak_equity": risk_state.rolling_peak_equity,
+                    "consecutive_losses": risk_state.consecutive_losses,
+                    "route_losses": risk_state.route_losses,
+                    "max_consecutive_losses": cfg.risk.max_consecutive_losses,
+                    "max_daily_loss_pct": cfg.risk.max_daily_loss_pct,
+                    "max_rolling_drawdown_pct": cfg.risk.max_rolling_drawdown_pct,
+                    "total_pnl": summary.get("total_pnl"),
+                    "total_trades": summary.get("total_trades", 0),
+                    "winners": summary.get("winners"),
+                    "losers": summary.get("losers"),
+                    "profit_factor": summary.get("profit_factor"),
+                    "win_rate": summary.get("win_rate"),
+                },
+                "config": {
+                    "environment": paper_env,
+                    "exchange": cfg.exchange.name,
+                    "pairs": list(cfg.strategy.trading_pairs),
+                    "timeframe": cfg.strategy.timeframe,
+                    "model_type": cfg.model.model_type,
+                    "confidence_threshold": cfg.model.confidence_threshold,
+                    "horizon_bars": cfg.model.horizon_bars,
+                    "max_risk_per_trade": cfg.risk.max_risk_per_trade,
+                    "max_daily_loss_pct": cfg.risk.max_daily_loss_pct,
+                    "initial_balance": cfg.initial_balance,
+                },
                 "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+
+    async def handle_market(self, request):
+        snapshot = await self.market.snapshot(
+            list(self.config.strategy.trading_pairs),
+            timeframe=self.config.strategy.timeframe,
+        )
+        snapshot["timeframe"] = self.config.strategy.timeframe
+        return web.json_response(snapshot)
+
+    async def handle_activity(self, request):
+        try:
+            events = self.risk.store.list_events(limit=25)
+        except Exception as exc:
+            logger.warning("could not read audit events: %s", exc)
+            events = []
+        return web.json_response(
+            {
+                "events": [
+                    {
+                        "event_type": e.get("event_type"),
+                        "details": e.get("details"),
+                        "created_at": e.get("created_at"),
+                    }
+                    for e in events
+                ]
             }
         )
 
