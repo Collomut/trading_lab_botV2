@@ -1,0 +1,35 @@
+# Secrets / environment
+.env
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Runtime state and artifacts
+data/
+logs/
+models/artifacts/*.pkl
+models/artifacts/*.joblib
+models/artifacts/*.json
+!models/artifacts/.gitkeep
+research/walkforward_results/*
+!research/walkforward_results/.gitkeep
+research/parameter_sweeps/*
+!research/parameter_sweeps/.gitkeep
+research/reports/*
+!research/reports/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db

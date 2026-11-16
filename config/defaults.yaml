@@ -1,0 +1,25 @@
+# Default configuration values. Environment variables override these.
+# Kept intentionally small; authoritative defaults live in config/schemas.py.
+exchange:
+  name: binance
+  paper_environment: testnet
+
+risk:
+  max_risk_per_trade: 1.0
+  max_notional_pct: 10.0
+  max_daily_loss_pct: 3.0
+  max_rolling_drawdown_pct: 5.0
+  max_consecutive_losses: 3
+  min_rolling_pf: 1.0
+
+model:
+  model_type: sklearn
+  confidence_threshold: 0.60
+  calibration_method: platt
+
+strategy:
+  trading_pairs:
+    - BTC/USDT
+    - ETH/USDT
+    - SOL/USDT
+  timeframe: 1h
