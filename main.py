@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 
 from config.loader import ConfigError, load_config, validate_model_artifact
@@ -158,8 +159,20 @@ def cmd_dashboard(config, args) -> int:
         return 2
     store = _build_store(config)
     risk = RiskManager(config.risk, store)
-    WebDashboard(config, risk).run(port=args.port)
+    port = args.port or _default_dashboard_port(config)
+    WebDashboard(config, risk).run(port=port)
     return 0
+
+
+def _default_dashboard_port(config) -> int:
+    """Prefer the platform-provided PORT (Railway/Heroku) over the configured one."""
+    raw = os.environ.get("PORT", "").strip()
+    if raw:
+        try:
+            return int(raw)
+        except ValueError:
+            pass
+    return int(config.dashboard.dashboard_port)
 
 
 def cmd_download(config, args) -> int:
@@ -195,7 +208,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--mode", default="dashboard", choices=["train", "compare", "backtest", "paper", "live", "dashboard", "download"])
     parser.add_argument("--symbol", default="BTC/USDT")
     parser.add_argument("--interval", type=int, default=60)
-    parser.add_argument("--port", type=int, default=5000)
+    parser.add_argument("--port", type=int, default=None)
     parser.add_argument("--data", default="", help="Path to a parquet OHLCV file")
     parser.add_argument("--synthetic", action="store_true", help="Use synthetic data (offline demo)")
     parser.add_argument("--synthetic-bars", type=int, default=6000)

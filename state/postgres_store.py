@@ -16,17 +16,40 @@ from state.store import ORDER_TRANSITIONS, StateStore
 try:  # pragma: no cover - import guarded so SQLite-only installs still work
     import psycopg
     from psycopg.rows import dict_row
-    from psycopg_pool import ConnectionPool
 except Exception:  # pragma: no cover
     psycopg = None  # type: ignore
     dict_row = None  # type: ignore
+
+try:  # pragma: no cover - psycopg_pool ships as a separate distribution
+    from psycopg_pool import ConnectionPool
+except Exception:  # pragma: no cover
     ConnectionPool = None  # type: ignore
+
+
+POSTGRES_INSTALL_HINT = (
+    "install it with `pip install 'psycopg[binary,pool]>=3.2'` "
+    "or `pip install -e '.[postgres]'`"
+)
+
+
+def missing_dependencies() -> list[str]:
+    """Return the Postgres driver packages that cannot be imported."""
+    missing = []
+    if psycopg is None or dict_row is None:
+        missing.append("psycopg")
+    if ConnectionPool is None:
+        missing.append("psycopg_pool")
+    return missing
 
 
 class PostgresStore(StateStore):
     def __init__(self, database_url: str, *, min_size: int = 1, max_size: int = 4):
-        if psycopg is None:  # pragma: no cover
-            raise RuntimeError("psycopg is not installed; cannot use the Postgres store")
+        missing = missing_dependencies()
+        if missing:  # pragma: no cover
+            raise RuntimeError(
+                f"Postgres store unavailable: missing {', '.join(missing)}. "
+                f"Set DATABASE_URL only when the driver is installed; {POSTGRES_INSTALL_HINT}."
+            )
         self.database_url = database_url
         self._pool = ConnectionPool(
             conninfo=database_url, min_size=min_size, max_size=max_size, open=True

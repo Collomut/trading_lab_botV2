@@ -56,3 +56,17 @@ def test_unresolved_orders(temp_store):
 
 def test_quick_check(temp_store):
     assert temp_store.quick_check() in {"ok", "ok"} or "ok" in temp_store.quick_check()
+
+
+def test_postgres_store_reports_missing_driver(monkeypatch):
+    import state.postgres_store as postgres_store
+
+    monkeypatch.setattr(postgres_store, "ConnectionPool", None)
+    try:
+        postgres_store.PostgresStore("postgresql://localhost/example")
+    except RuntimeError as exc:
+        message = str(exc)
+        assert "psycopg_pool" in message
+        assert "psycopg[binary,pool]" in message
+    else:
+        raise AssertionError("expected RuntimeError when psycopg_pool is unavailable")
