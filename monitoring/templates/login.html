@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Operator Login · Trading Lab</title>
+<link rel="stylesheet" href="/assets/app.css?v=v2">
+<script src="/assets/app.js?v=v2" defer></script></head>
+<body>
+<nav><div class="nav-inner">
+<a class="brand" href="/login">TRADING LAB <span style="opacity:.55;font-size:.7em">/ v2</span></a>
+<div class="nav-links"><a class="nav-link" href="/terms">Glossary</a></div>
+<button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch theme"><span aria-hidden="true">◐</span><span data-theme-label>Dark mode</span></button>
+</div></nav>
+<main class="container" style="max-width:480px;margin-top:40px">
+<div class="card login-card" style="padding:28px">
+<div class="eyebrow" style="margin-bottom:6px">Secure access</div>
+<h1 style="font-size:24px;margin-bottom:12px">Sign in to Trading Lab</h1>
+<p class="intro" style="font-size:13px;margin-bottom:20px">
+Enter the secret operator access token (<code>DASHBOARD_TOKEN</code>) to view the surveillance dashboard and manage trading controls.
+</p>
+<form method="POST" action="/login" id="login-form">
+<div style="margin-bottom:16px">
+<label for="token-input" style="display:block;font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600">ACCESS TOKEN</label>
+<input type="password" id="token-input" name="token" required autofocus autocomplete="current-password" placeholder="Enter DASHBOARD_TOKEN" style="width:100%;box-sizing:border-box;padding:10px 12px;font-size:14px;background:var(--soft);border:1px solid var(--line);border-radius:6px;color:var(--ink)">
+</div>
+<button type="submit" class="button" style="width:100%;justify-content:center;padding:11px">Enter Dashboard</button>
+<div id="login-error" class="help error-text" style="margin-top:10px;text-align:center"></div>
+</form>
+<div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);text-align:center">
+New to trading? <a href="/terms" style="text-decoration:underline">Read the beginner's glossary</a> without logging in.
+</div>
+</div></main>
+<script>
+const params=new URLSearchParams(window.location.search);
+if(params.get('error'))document.getElementById('login-error').textContent='Invalid access token. Check the DASHBOARD_TOKEN value on the server.';
+</script>
+</body></html>

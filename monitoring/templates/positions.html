@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Positions · Trading Lab</title>
+<link rel="stylesheet" href="/assets/app.css?v=v2"><script src="/assets/app.js?v=v2" defer></script></head>
+<body>
+<nav><div class="nav-inner"><a class="brand" href="/">TRADING LAB <span style="opacity:.55;font-size:.7em">/ v2</span></a>
+<div class="nav-links"><a class="nav-link" href="/">Overview</a><a class="nav-link active" href="/positions">Positions</a>
+<a class="nav-link" href="/history">Trades</a><a class="nav-link" href="/strategy">Strategy</a><a class="nav-link" href="/logs">Logs</a><a class="nav-link" href="/terms">Glossary</a></div>
+<button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch to dark mode"><span aria-hidden="true">◐</span><span data-theme-label>Dark mode</span></button></div></nav>
+<main class="container">
+<header class="page-head"><div><div class="eyebrow">Portfolio</div><h1>Open positions</h1></div>
+<div class="status"><span id="dot" class="dot"></span><span id="state" data-skeleton aria-busy="true">Loading…</span></div></header>
+<p class="help">Quantity and P&amp;L come from reconciled bot records. Stops are monitored by the process; app-managed exits require it to stay online. Open P&amp;L is an estimate and excludes fees.</p>
+<div id="positions" class="table-wrap positions-table"><div class="empty" data-skeleton aria-busy="true">Loading…</div></div>
+<footer>Verify fills with the exchange. <a href="/terms#position">Position definitions</a></footer>
+</main>
+<script>
+const money=v=>v==null||!isFinite(Number(v))?'—':'$'+Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+const px=v=>v==null||!isFinite(Number(v))?'—':Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:4});
+function cell(row,v,cls=''){const td=document.createElement('td');td.textContent=v;if(cls)td.className=cls;row.append(td)}
+async function refresh(){try{
+ const r=await fetch('/api/status',{cache:'no-store'});if(r.status===401){location='/login';return}if(!r.ok)throw Error('Status unavailable ('+r.status+')');
+ const d=await r.json(),q=(await (await fetch('/api/market',{cache:'no-store'})).json()).quotes||{};
+ const entries=Object.entries(d.positions||{}),wrap=document.getElementById('positions');wrap.replaceChildren();
+ if(!entries.length){const p=document.createElement('div');p.className='empty';p.textContent='No open positions tracked — the bot is flat';wrap.append(p)}
+ else{const t=document.createElement('table'),h=t.createTHead().insertRow();
+ ['Pair','Side','Qty','Entry','Mark','Open P&L','Stop','Target','Route','Regime'].forEach(x=>{const th=document.createElement('th');th.textContent=x;h.append(th)});
+ const b=t.createTBody();for(const [sym,p] of entries){
+  const last=q[sym]?.last;const pnl=last!=null&&p.entry_price>0?(last-p.entry_price)*Number(p.amount)*(p.side==='short'?-1:1):null;
+  const row=b.insertRow();cell(row,sym);cell(row,(p.side||'long').toUpperCase());cell(row,Number(p.amount).toPrecision(7));
+  cell(row,px(p.entry_price));cell(row,last!=null?px(last):'—');cell(row,money(pnl),pnl==null?'':pnl>=0?'positive':'negative');
+  cell(row,px(p.stop_loss_price));cell(row,p.take_profit_price!=null?px(p.take_profit_price):'strategy exit');
+  cell(row,p.route||'—');cell(row,p.regime||'—')}
+  wrap.append(t)}
+ document.getElementById('state').textContent=`${entries.length} open · ${d.halted?'halted':d.entry_mode||'active'} · ${new Date().toLocaleTimeString()}`;
+ document.getElementById('dot').className='dot '+(d.halted?'bad':'ok');
+}catch(e){document.getElementById('state').textContent=e.message;document.getElementById('dot').className='dot bad'}}
+refresh();setInterval(refresh,10000);
+</script></body></html>

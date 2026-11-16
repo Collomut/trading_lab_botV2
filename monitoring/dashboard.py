@@ -17,10 +17,11 @@ from pathlib import Path
 
 from aiohttp import web
 
-from monitoring.dashboard_ui import INDEX_HTML, LOGIN_HTML
 from monitoring.market_data import MarketData
 
 logger = logging.getLogger("trade_v2.dashboard")
+
+TEMPLATES = Path(__file__).parent / "templates"
 
 # Sessions are in-memory (the dashboard is single-replica only) and expire so a
 # forgotten browser session cannot stay valid forever.
@@ -109,14 +110,15 @@ class WebDashboard:
     async def _auth_middleware(self, request, handler):
         path = request.path.rstrip("/") or "/"
         is_health = path.startswith("/health/")
+        is_public = path == "/login" or path == "/terms" or path.startswith("/assets/")
         is_login = path == "/login"
 
         if not is_health:
-            if not self.token and not is_login:
+            if not self.token and not is_public:
                 return self._secure(
                     web.json_response({"error": "Dashboard disabled: no token configured"}, status=503)
                 )
-            if not is_login and not self._authorized(request):
+            if not is_public and not self._authorized(request):
                 accept = request.headers.get("Accept", "")
                 is_page_get = request.method in {"GET", "HEAD"} and not path.startswith("/api/")
                 if is_page_get and "text/html" in accept:
@@ -145,6 +147,12 @@ class WebDashboard:
     def create_app(self) -> web.Application:
         app = web.Application(middlewares=[self._auth_middleware])
         app.router.add_get("/", self.handle_index)
+        app.router.add_get("/positions", self.handle_positions)
+        app.router.add_get("/history", self.handle_history)
+        app.router.add_get("/strategy", self.handle_strategy)
+        app.router.add_get("/logs", self.handle_logs)
+        app.router.add_get("/terms", self.handle_terms)
+        app.router.add_get("/assets/{name}", self.handle_asset)
         app.router.add_get("/login", self.handle_login_get)
         app.router.add_post("/login", self.handle_login_post)
         app.router.add_post("/logout", self.handle_logout)
@@ -152,28 +160,51 @@ class WebDashboard:
         app.router.add_get("/health/readiness", self.handle_readiness)
         app.router.add_get("/api/status", self.handle_status)
         app.router.add_get("/api/market", self.handle_market)
+        app.router.add_get("/api/candles", self.handle_candles)
+        app.router.add_get("/api/trades", self.handle_trades)
         app.router.add_get("/api/activity", self.handle_activity)
         app.router.add_post("/api/emergency-stop", self.handle_emergency_stop)
         app.router.add_post("/api/resume", self.handle_resume)
+        app.router.add_post("/api/exit-only", self.handle_exit_only)
+        app.router.add_post("/api/refresh-market", self.handle_refresh_market)
         return app
 
     @staticmethod
-    def _render_login(error: str = "") -> str:
-        error_html = f'<p class="err" role="alert">{error}</p>' if error else ""
-        return LOGIN_HTML.substitute(error=error_html)
+    def _page(name: str) -> web.FileResponse:
+        response = web.FileResponse(TEMPLATES / name)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
+
+    async def handle_index(self, request):
+        return self._page("overview.html")
+
+    async def handle_positions(self, request):
+        return self._page("positions.html")
+
+    async def handle_history(self, request):
+        return self._page("history.html")
+
+    async def handle_strategy(self, request):
+        return self._page("strategy.html")
+
+    async def handle_logs(self, request):
+        return self._page("logs.html")
+
+    async def handle_terms(self, request):
+        return self._page("glossary.html")
+
+    async def handle_asset(self, request):
+        name = request.match_info.get("name", "")
+        if name not in {"app.css", "app.js"}:
+            raise web.HTTPNotFound()
+        return self._page(name)
 
     async def handle_login_get(self, request):
         if self._authorized(request):
             raise self._secure(web.HTTPSeeOther("/"))
-        if not self.token:
-            return self._secure(
-                web.Response(
-                    text=self._render_login("Dashboard disabled: no token configured."),
-                    content_type="text/html",
-                    status=503,
-                )
-            )
-        return self._secure(web.Response(text=self._render_login(), content_type="text/html"))
+        return self._page("login.html")
 
     async def handle_login_post(self, request):
         if not self.token:
@@ -186,12 +217,7 @@ class WebDashboard:
             form = {}
         supplied = str(form.get("token", "")).strip()
         if not self._token_matches(supplied):
-            response = web.Response(
-                text=self._render_login("Invalid dashboard token."),
-                content_type="text/html",
-                status=401,
-            )
-            return self._secure(response)
+            raise self._secure(web.HTTPSeeOther("/login?error=1"))
 
         sid = self._new_session()
         response = self._secure(web.HTTPSeeOther("/"))
@@ -213,9 +239,6 @@ class WebDashboard:
         response.del_cookie(SESSION_COOKIE, path="/")
         response.del_cookie("dashboard_token", path="/")
         raise response
-
-    async def handle_index(self, request):
-        return web.Response(text=INDEX_HTML, content_type="text/html")
 
     async def handle_liveness(self, request):
         return web.json_response({"status": "alive", "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000)})
@@ -247,6 +270,7 @@ class WebDashboard:
                 "profit_factor": summary.get("profit_factor"),
                 "win_rate": summary.get("win_rate"),
                 "route_halts": self.risk.route_halts(),
+                "unresolved_orders": len(self.risk.store.unresolved_orders()),
                 "pairs": list(cfg.strategy.trading_pairs),
                 "timeframe": cfg.strategy.timeframe,
                 "performance": summary,
@@ -290,9 +314,45 @@ class WebDashboard:
         snapshot["timeframe"] = self.config.strategy.timeframe
         return web.json_response(snapshot)
 
+    async def handle_candles(self, request):
+        symbol = request.query.get("symbol", "").strip()
+        timeframe = request.query.get("timeframe", self.config.strategy.timeframe)
+        if symbol not in self.config.strategy.trading_pairs:
+            return web.json_response({"error": "Choose a configured trading pair."}, status=400)
+        if timeframe not in {"15m", "1h", "4h", "1d"}:
+            return web.json_response({"error": "Unsupported chart timeframe."}, status=400)
+        snapshot = await self.market.snapshot([symbol], timeframe=timeframe, limit=100)
+        rows = snapshot.get("candles", {}).get(symbol) or []
+        if not rows:
+            return web.json_response(
+                {"error": snapshot.get("error") or "Market candles are temporarily unavailable."},
+                status=502,
+            )
+        return web.json_response(
+            {
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "candles": [
+                    {
+                        "time": row[0], "open": row[1], "high": row[2],
+                        "low": row[3], "close": row[4], "volume": row[5],
+                    }
+                    for row in rows
+                ],
+            }
+        )
+
+    async def handle_trades(self, request):
+        try:
+            trades = self.risk.store.list_trades(500)
+        except Exception as exc:
+            logger.warning("could not read trades: %s", exc)
+            trades = []
+        return web.json_response({"trades": trades})
+
     async def handle_activity(self, request):
         try:
-            events = self.risk.store.list_events(limit=25)
+            events = self.risk.store.list_events(limit=100)
         except Exception as exc:
             logger.warning("could not read audit events: %s", exc)
             events = []
@@ -311,15 +371,34 @@ class WebDashboard:
 
     async def handle_emergency_stop(self, request):
         self.risk.halt("Emergency stop requested via dashboard")
-        return web.json_response({"ok": True, "halted": True})
+        return web.json_response({"ok": True, "halted": True, "message": "Trading halted by operator."})
 
     async def handle_resume(self, request):
         # Only allow resume when flat and reconciled; operator must have reviewed.
         clean = not self.risk.open_positions and not self.risk.store.unresolved_orders()
         if not clean:
-            return web.json_response({"ok": False, "error": "Account not flat/reconciled"}, status=409)
+            return web.json_response(
+                {"ok": False, "error": "Account not flat/reconciled — resume refused."},
+                status=409,
+            )
         ok = self.risk.resume()
-        return web.json_response({"ok": ok})
+        return web.json_response(
+            {"ok": ok, "message": "Trading resumed." if ok else "Bot was not halted."}
+        )
+
+    async def handle_exit_only(self, request):
+        self.risk.set_entry_mode("EXIT_ONLY")
+        return web.json_response(
+            {"ok": True, "entry_mode": self.risk.entry_mode(), "message": "New entries paused; exits and stops stay active."}
+        )
+
+    async def handle_refresh_market(self, request):
+        await self.market.snapshot(
+            list(self.config.strategy.trading_pairs),
+            timeframe=self.config.strategy.timeframe,
+            force=True,
+        )
+        return web.json_response({"ok": True, "message": "Market data refreshed."})
 
     def run(self, port: int | None = None) -> None:
         web.run_app(self.create_app(), port=port or self.config.dashboard.dashboard_port)

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Activity · Trading Lab</title>
+<link rel="stylesheet" href="/assets/app.css?v=v2"><script src="/assets/app.js?v=v2" defer></script></head>
+<body>
+<nav><div class="nav-inner"><a class="brand" href="/">TRADING LAB <span style="opacity:.55;font-size:.7em">/ v2</span></a>
+<div class="nav-links"><a class="nav-link" href="/">Overview</a><a class="nav-link" href="/positions">Positions</a>
+<a class="nav-link" href="/history">Trades</a><a class="nav-link" href="/strategy">Strategy</a><a class="nav-link active" href="/logs">Logs</a><a class="nav-link" href="/terms">Glossary</a></div>
+<button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch to dark mode"><span aria-hidden="true">◐</span><span data-theme-label>Dark mode</span></button></div></nav>
+<main class="container">
+<header class="page-head"><div><div class="eyebrow">Bot activity</div><h1>Decision &amp; safety log</h1></div>
+<div class="status"><span id="log-dot" class="dot"></span><span id="log-state" data-skeleton aria-busy="true">Loading activity…</span></div></header>
+<p class="intro">Review safety events, mode changes, and manual actions. Newest first; refreshes automatically.</p>
+<div class="table-wrap"><table><thead><tr><th>Time (UTC)</th><th>Event</th><th>Details</th></tr></thead><tbody id="log-body"><tr><td colspan="3" class="empty">Loading…</td></tr></tbody></table></div>
+<footer>Only display-safe fields are shown; raw exchange responses and credentials are never logged here.</footer>
+</main>
+<script>
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function refresh(){try{
+ const r=await fetch('/api/activity',{cache:'no-store'});if(r.status===401){location='/login';return}if(!r.ok)throw Error('Activity unavailable ('+r.status+')');
+ const d=await r.json(),events=d.events||[],body=document.getElementById('log-body');body.replaceChildren();
+ if(!events.length){const tr=document.createElement('tr');const td=document.createElement('td');td.colSpan=3;td.className='empty';td.textContent='No activity recorded yet';tr.append(td);body.append(tr)}
+ for(const e of events){const tr=document.createElement('tr');const t=document.createElement('td');t.textContent=(e.created_at||'').replace('T',' ').slice(0,19);const ty=document.createElement('td');ty.textContent=e.event_type||'—';const de=document.createElement('td');const details=e.details||{};de.textContent=Object.entries(details).slice(0,3).map(([k,v])=>`${k}=${typeof v==='object'?JSON.stringify(v):v}`).join(' · ')||'—';tr.append(t,ty,de);body.append(tr)}
+ document.getElementById('log-dot').className='dot ok';document.getElementById('log-state').textContent=`${events.length} events · ${new Date().toLocaleTimeString()}`;
+}catch(e){document.getElementById('log-dot').className='dot bad';document.getElementById('log-state').textContent=e.message}}
+refresh();setInterval(refresh,15000);
+</script></body></html>

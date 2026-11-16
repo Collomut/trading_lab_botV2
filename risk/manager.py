@@ -135,9 +135,9 @@ class RiskManager:
 
     def entry_mode(self) -> str:
         persisted = self.store.read_state("entry_mode")
-        if persisted in {"ACTIVE", "EXIT_ONLY"}:
-            return persisted
-        return self._entry_mode_default
+        # set_entry_mode() persists {"mode": ...}; tolerate legacy raw strings too.
+        value = persisted.get("mode") if isinstance(persisted, dict) else persisted
+        return value if value in {"ACTIVE", "EXIT_ONLY"} else self._entry_mode_default
 
     def set_entry_mode(self, mode: str) -> None:
         if mode not in {"ACTIVE", "EXIT_ONLY"}:

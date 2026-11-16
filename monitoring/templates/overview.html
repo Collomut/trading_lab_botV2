@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><title>Overview · Trading Lab</title>
+<link rel="stylesheet" href="/assets/app.css?v=v2"><script src="/assets/app.js?v=v2" defer></script></head>
+<body>
+<nav><div class="nav-inner">
+<a class="brand" href="/">TRADING LAB <span style="opacity:.55;font-size:.7em">/ v2</span></a>
+<div class="nav-links">
+<a class="nav-link active" href="/">Overview</a><a class="nav-link" href="/positions">Positions</a>
+<a class="nav-link" href="/history">Trades</a><a class="nav-link" href="/strategy">Strategy</a>
+<a class="nav-link" href="/logs">Logs</a><a class="nav-link" href="/terms">Glossary</a>
+</div>
+<button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch to dark mode"><span aria-hidden="true">◐</span><span data-theme-label>Dark mode</span></button>
+</div></nav>
+
+<main class="container">
+<header class="page-head"><div><div class="eyebrow">Model-based surveillance</div><h1>Overview</h1></div>
+<div class="status"><span id="dot" class="dot"></span><span id="connection" data-skeleton aria-busy="true">Connecting…</span></div></header>
+
+<div class="notice compact"><strong id="modeLabel">Paper trading</strong><span id="mode">Loading…</span><span class="muted-inline">· Signals use the latest completed candle and are not forecasts.</span></div>
+
+<section class="card trading-controls-card">
+<div class="trading-controls-header"><strong>Trading controls</strong>
+<div class="help">Pause entries keeps existing positions and stops active. Resume requires a flat, reconciled account. Daily and drawdown limits always stay in force.</div></div>
+<div class="trading-controls-actions">
+<button id="entry-control" type="button" class="button">Pause entries</button>
+<button id="resume-control" type="button" class="button secondary">Resume entries</button>
+<button id="emergency-stop" type="button" class="button secondary">Emergency stop</button>
+<button id="refresh-market" type="button" class="button secondary">Refresh market data</button>
+</div>
+<span id="control-status" class="help" aria-live="polite"></span>
+</section>
+
+<div id="feed-alert" class="notice compact" role="status" hidden style="display:none"><strong>Market feed</strong><span id="feed-message"></span></div>
+
+<div class="overview-metrics">
+<section class="card metric-card"><div class="metric-label">Tracked equity</div><div class="metric" id="equity" data-skeleton aria-busy="true">—</div></section>
+<section class="card metric-card"><div class="metric-label">Realized P&amp;L</div><div class="metric" id="pnl" data-skeleton aria-busy="true">—</div></section>
+<section class="card metric-card"><div class="metric-label">Profit factor</div><div class="metric" id="pf" data-skeleton aria-busy="true">—</div></section>
+<section class="card metric-card"><div class="metric-label">Win rate</div><div class="metric" id="win" data-skeleton aria-busy="true">—</div></section>
+<section class="card metric-card"><div class="metric-label">Open positions</div><div class="metric" id="open-count" data-skeleton aria-busy="true">—</div></section>
+</div>
+
+<section class="market-pulse card" aria-labelledby="pulse-title">
+<div class="pulse-heading"><div><div class="eyebrow">Coins it is tracking</div><h2 id="pulse-title">Market pulse</h2>
+<p class="help">Live spot prices for the configured pairs. Trend is MA7 vs MA25 on the loaded candles — informational only.</p></div>
+<div class="pulse-updated"><span class="pulse-live-dot" aria-hidden="true"></span><span id="pulse-updated">Waiting for market data</span></div></div>
+<div id="pulse-summary" class="pulse-summary" aria-live="polite">Connecting to the market feed…</div>
+<div id="market-pulse-grid" class="market-pulse-grid"><div class="pulse-loading">Loading market checks…</div></div>
+</section>
+
+<section class="card chart-card">
+<div class="chart-heading"><div class="chart-brand-row"><h2 id="chart-title">Market</h2>
+<span id="chart-change" class="tag" aria-label="Change across loaded candles">—</span></div>
+<div class="chart-controls"><select id="symbol" aria-label="Trading pair"></select></div></div>
+<div class="chart-price-row"><div class="price-main-col"><strong id="chart-price">—</strong>
+<span class="stat-pill"><span class="stat-lbl">Loaded high</span><b id="chart-high">—</b></span>
+<span class="stat-pill"><span class="stat-lbl">Loaded low</span><b id="chart-low">—</b></span></div></div>
+<div class="chart-toolbar">
+<div class="chart-toolbar-group chart-timeframe-pills">
+<button type="button" class="chart-pill" data-tf="15m">15m</button>
+<button type="button" class="chart-pill active" data-tf="1h">1h</button>
+<button type="button" class="chart-pill" data-tf="4h">4h</button>
+<button type="button" class="chart-pill" data-tf="1d">1D</button></div>
+<div class="chart-toolbar-group">
+<button type="button" class="chart-pill active" id="btn-mode-candles" title="Candlestick chart">Candles</button>
+<button type="button" class="chart-pill" id="btn-mode-area" title="Line chart">Line</button></div>
+<details class="chart-indicators"><summary>Indicators</summary><div class="chart-indicator-menu">
+<button type="button" class="ind-pill ind-ma7" id="btn-ind-ma7"><span class="dot-ind gold"></span> MA(7)</button>
+<button type="button" class="ind-pill ind-ma25" id="btn-ind-ma25"><span class="dot-ind cyan"></span> MA(25)</button>
+<button type="button" class="ind-pill ind-ema99" id="btn-ind-ema99"><span class="dot-ind violet"></span> EMA(99)</button>
+<button type="button" class="ind-pill active ind-vol" id="btn-ind-vol"><span class="dot-ind green"></span> Volume</button>
+</div></details></div>
+<div class="chart-hud" id="chart-hud" aria-hidden="true">
+<span class="hud-item"><span class="hud-lbl">Time</span><span class="hud-val" id="hud-time">—</span></span>
+<span class="hud-item"><span class="hud-lbl">O</span><span class="hud-val" id="hud-o">—</span></span>
+<span class="hud-item"><span class="hud-lbl">H</span><span class="hud-val" id="hud-h">—</span></span>
+<span class="hud-item"><span class="hud-lbl">L</span><span class="hud-val" id="hud-l">—</span></span>
+<span class="hud-item"><span class="hud-lbl">C</span><span class="hud-val" id="hud-c">—</span></span>
+<span class="hud-item"><span class="hud-lbl">Chg</span><span class="hud-val" id="hud-chg">—</span></span>
+<span class="hud-item"><span class="hud-lbl">Vol</span><span class="hud-val" id="hud-v">—</span></span></div>
+<div class="chart-wrap" id="chart-container"><canvas id="price-chart-canvas" class="chart-canvas" role="img" aria-label="Market chart"></canvas>
+<div id="chart-tooltip" class="chart-tooltip"></div>
+<div id="chart-loading-overlay" class="chart-loading-overlay" hidden><div class="cyber-spinner"></div><span>Loading market data…</span></div></div>
+<div class="chart-foot"><span id="chart-range">—</span><span>Scroll to zoom · drag to pan · reference only</span></div>
+<div id="chart-error" class="help error-text" aria-live="polite"></div>
+</section>
+
+<section class="grid two">
+<div class="card"><h2 style="font-size:1.05rem">Open positions</h2><div id="overview-positions" class="table-wrap"><div class="empty">Loading…</div></div></div>
+<div class="card"><h2 style="font-size:1.05rem">Risk &amp; safety</h2><div id="overview-risk" class="limit-list"><div class="limit-row">Loading…</div></div>
+<div id="halt-reason" class="notice compact" hidden style="display:none"><strong>Halt</strong><span id="halt-text"></span></div></div>
+</section>
+
+<div class="section-links">
+<a class="card link-card" href="/positions"><strong>Positions</strong><span>Entry, exit levels, and open P&amp;L →</span></a>
+<a class="card link-card" href="/history"><strong>Trade history</strong><span>Closed trades, P&amp;L and equity curve →</span></a>
+<a class="card link-card" href="/strategy"><strong>Strategy &amp; risk</strong><span>Model, signals and active limits →</span></a>
+<a class="card link-card" href="/logs"><strong>Decision logs</strong><span>Safety events and manual actions →</span></a>
+</div>
+<footer>Values are estimates from the bot's local records and public spot data. Fees and slippage may be omitted. <a href="/terms">Read the glossary</a></footer>
+</main>
+
+<script>
+const $=id=>document.getElementById(id);
+const money=v=>v==null||!isFinite(Number(v))?'—':'$'+Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+const pct=v=>v==null||!isFinite(Number(v))?'—':Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+'%';
+const priceFmt=v=>{const n=Number(v);if(!isFinite(n))return '—';if(n>=1000)return n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});if(n>=1)return n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:3});if(n>=0.0001)return n.toLocaleString(undefined,{minimumFractionDigits:4,maximumFractionDigits:6});return n.toLocaleString(undefined,{minimumFractionDigits:6,maximumFractionDigits:8})};
+const volFmt=v=>{const n=Number(v);if(!isFinite(n))return '—';if(n>=1e6)return (n/1e6).toFixed(2)+'M';if(n>=1e3)return (n/1e3).toFixed(2)+'K';return n.toFixed(2)};
+let statusData=null, marketData=null, symbols=[], selectedSymbol=null, chartData=[], timeframe='1h';
+const chart={mode:'candles',ma7:false,ma25:false,ema99:false,vol:true,visible:60,offset:0,hoverX:null,drag:false,dragX:0,dragOffset:0};
+
+function setDot(ok){$('dot').className='dot '+(ok?'ok':'bad');$('connection').textContent=(ok?'Connected':'Offline')+' · '+new Date().toLocaleTimeString()}
+async function api(path,opts){const r=await fetch(path,{cache:'no-store',...opts});if(r.status===401){location='/login';throw Error('Unauthorized')}if(!r.ok){let d={};try{d=await r.json()}catch(e){}throw Error(d.error||('Request failed ('+r.status+')'))}return r.json()}
+
+function renderKpis(d){
+ const r=d.risk||{};
+ $('equity').textContent=d.equity!=null?money(d.equity):money(d.config&&d.config.initial_balance);
+ const pnl=r.total_pnl;
+ $('pnl').textContent=money(pnl);$('pnl').className='metric '+(pnl>0?'positive':pnl<0?'negative':'');
+ $('pf').textContent=r.profit_factor==null?'—':Number(r.profit_factor).toFixed(2);
+ $('win').textContent=r.win_rate==null?'—':pct(r.win_rate);
+ $('open-count').textContent=String(d.open_positions||0);
+ const paper=d.paper_trading!==false;
+ $('modeLabel').textContent=paper?'Practice mode':'LIVE mode';
+ $('mode').textContent=paper?`${d.config?.exchange||' Exchange'} · ${d.config?.environment||'paper'} · exits may fail during outages`:'Real funds at risk — guarded live mode';
+ $('mode').className=paper?'':'negative';
+ const hb=$('halt-reason');if(d.halted){hb.hidden=false;hb.style.display='';$('halt-text').textContent=d.halt_reason||'Trading halted'}else{hb.hidden=true;hb.style.display='none'}
+}
+
+function renderRisk(d){
+ const r=d.risk||{},box=$('overview-risk');box.replaceChildren();
+ const rows=[
+  ['Bot status',d.halted?'HALTED':(d.entry_mode||'ACTIVE')],
+  ['Entry mode',d.entry_mode||'ACTIVE'],
+  ['Daily P&L',money(r.daily_loss)],
+  ['Daily loss limit',pct(r.max_daily_loss_pct)],
+  ['Rolling drawdown limit',pct(r.max_rolling_drawdown_pct)],
+  ['Consecutive losses',`${r.consecutive_losses??0} / ${r.max_consecutive_losses??'—'}`],
+  ['Daily starting equity',money(r.daily_starting_equity)],
+  ['Rolling peak equity',money(r.rolling_peak_equity)],
+  ['Route halts',Object.keys(d.route_halts||{}).length?Object.keys(d.route_halts).join(', '):'None'],
+  ['Unresolved orders',String(d.unresolved_orders??'—')]
+ ];
+ for(const [k,v] of rows){const row=document.createElement('div');row.className='limit-row';const a=document.createElement('span');a.textContent=k;const b=document.createElement('strong');b.textContent=v;row.append(a,b);box.append(row)}
+}
+
+function renderPositions(d){
+ const wrap=$('overview-positions');wrap.replaceChildren();
+ const entries=Object.entries(d.positions||{});
+ if(!entries.length){const e=document.createElement('div');e.className='empty';e.textContent='No open positions — the bot is flat';wrap.append(e);return}
+ const t=document.createElement('table'),h=t.createTHead().insertRow();
+ ['Pair','Qty','Entry','Mark','Open P&L','Stop'].forEach(x=>{const th=document.createElement('th');th.textContent=x;h.append(th)});
+ const b=t.createTBody();
+ for(const [sym,p] of entries){
+  const q=marketData?.quotes?.[sym];const last=q?.last;
+  const pnl=last!=null&&p.entry_price>0?(last-p.entry_price)*Number(p.amount)*(p.side==='short'?-1:1):null;
+  const row=b.insertRow();const c=(v,cl)=>{const td=row.insertCell();td.textContent=v;if(cl)td.className=cl};
+  c(sym);c(Number(p.amount).toPrecision(7));c(money(p.entry_price));c(last!=null?priceFmt(last):'—');
+  c(money(pnl),pnl==null?'':pnl>=0?'positive':'negative');c(money(p.stop_loss_price));
+ }
+ wrap.append(t);
+}
+
+function trendOf(rows){if(!rows||rows.length<26)return {label:'WARMUP',cls:'pulse-hold'};const c=rows.map(r=>r[4]);const ma=a=>a.slice(-a.length).reduce((x,y)=>x+y,0)/a.length;const f=ma(c.slice(-7)),s=ma(c.slice(-25));if(f>s*1.001)return {label:'UP',cls:'pulse-buy'};if(f<s*0.999)return {label:'DOWN',cls:'pulse-sell'};return {label:'RANGE',cls:'pulse-hold'}}
+
+function renderPulse(){
+ const grid=$('market-pulse-grid');grid.replaceChildren();
+ const pairs=statusData?.pairs||symbols;
+ if(!pairs.length||!marketData){grid.innerHTML='<div class="pulse-loading">Market data unavailable</div>';return}
+ let ups=0,downs=0;
+ for(const sym of pairs){
+  const q=marketData.quotes?.[sym]||{};const rows=marketData.candles?.[sym]||[];
+  const tr=trendOf(rows);if(tr.cls==='pulse-buy')ups++;if(tr.cls==='pulse-sell')downs++;
+  const card=document.createElement('div');card.className='pulse-card '+tr.cls;card.tabIndex=0;
+  card.onclick=()=>{selectSymbol(sym);$('chart-container').scrollIntoView({behavior:'smooth',block:'center'})};
+  const top=document.createElement('div');top.className='pulse-card-top';
+  const nm=document.createElement('strong');nm.textContent=sym;
+  const sig=document.createElement('span');sig.className='pulse-signal '+tr.cls;sig.textContent=tr.label;
+  top.append(nm,sig);card.append(top);
+  const px=document.createElement('div');px.className='pulse-price';px.textContent=priceFmt(q.last);
+  card.append(px);
+  const gates=document.createElement('div');gates.className='pulse-gates';
+  const ch=q.change_pct;
+  const g=(k,v,cls)=>{const d=document.createElement('div');d.className='pulse-gate';const a=document.createElement('span');a.textContent=k;const b=document.createElement('strong');b.textContent=v;if(cls)b.className=cls;d.append(a,b);gates.append(d)};
+  g('24h change',ch==null?'—':(ch>=0?'+':'')+pct(ch),ch==null?'':ch>=0?'positive':'negative');
+  g('Loaded high / low',rows.length?priceFmt(Math.max(...rows.map(r=>r[2])))+' / '+priceFmt(Math.min(...rows.map(r=>r[3]))):'—');
+  g('Quote volume',q.volume!=null?volFmt(q.volume):'—');
+  card.append(gates);grid.append(card);
+ }
+ $('pulse-summary').textContent=`Tracking ${pairs.length} pairs · ${ups} trending up · ${downs} trending down · latest feed ${(marketData.updated_at||'').replace('T',' ').slice(0,19)}`;
+ $('pulse-updated').textContent=marketData.source==='live'?'Live spot feed':(marketData.error||'Feed offline');
+ if(marketData.error){$('feed-alert').hidden=false;$('feed-alert').style.display='';$('feed-message').textContent=marketData.error}else{$('feed-alert').hidden=true;$('feed-alert').style.display='none'}
+}
+
+function populateSymbols(){
+ symbols=[...new Set([...(statusData?.pairs||[]),...(marketData?.quotes?Object.keys(marketData.quotes):[]),...(marketData?.candles?Object.keys(marketData.candles):[])])];
+ const sel=$('symbol');sel.replaceChildren();
+ for(const s of symbols){const o=document.createElement('option');o.value=s;o.textContent=s;sel.append(o)}
+ if(!selectedSymbol||!symbols.includes(selectedSymbol))selectedSymbol=symbols[0]||null;
+ sel.value=selectedSymbol||'';
+}
+
+function selectSymbol(s){selectedSymbol=s;$('symbol').value=s;chart.offset=0;loadChart()}
+
+function indicators(rows){
+ const n=rows.length,ma7=new Array(n).fill(null),ma25=new Array(n).fill(null),ema99=new Array(n).fill(null);
+ let s7=0,s25=0,ema=null;const k=2/100;
+ for(let i=0;i<n;i++){const c=rows[i][4];s7+=c;if(i>=7)s7-=rows[i-7][4];if(i>=6)ma7[i]=s7/7;s25+=c;if(i>=25)s25-=rows[i-25][4];if(i>=24)ma25[i]=s25/25;ema=ema==null?c:c*k+ema*(1-k);if(i>=8)ema99[i]=ema}
+ return {ma7,ma25,ema99};
+}
+
+async function loadChart(){
+ if(!selectedSymbol)return;
+ const overlay=$('chart-loading-overlay');overlay.hidden=false;
+ try{
+  const d=await api(`/api/candles?symbol=${encodeURIComponent(selectedSymbol)}&timeframe=${timeframe}`);
+  chartData=(d.candles||[]).map(c=>[c.time,c.open,c.high,c.low,c.close,c.volume]);
+  chart.offset=0;drawChart();
+  const last=chartData.at(-1),first=chartData[0];
+  if(last){$('chart-price').textContent=priceFmt(last[4]);$('chart-high').textContent=priceFmt(Math.max(...chartData.map(r=>r[2])));$('chart-low').textContent=priceFmt(Math.min(...chartData.map(r=>r[3])));const ch=(last[4]-first[1])/first[1]*100;$('chart-change').textContent=(ch>=0?'+':'')+ch.toFixed(2)+'%';$('chart-change').className='tag '+(ch>=0?'positive':'negative')}
+  $('chart-range').textContent=`${chartData.length} ${timeframe} candles · ${new Date(first[0]).toISOString().slice(0,10)} → ${new Date(last[0]).toISOString().slice(0,10)}`;
+  $('chart-error').textContent='';
+ }catch(e){$('chart-error').textContent='Chart unavailable: '+e.message;chartData=[];drawChart()}
+ finally{overlay.hidden=true}
+}
+
+function drawChart(){
+ const cv=$('price-chart-canvas'),ctx=cv.getContext('2d');const rect=cv.getBoundingClientRect(),dpr=window.devicePixelRatio||1;
+ if(!rect.width||!rect.height)return;cv.width=rect.width*dpr;cv.height=rect.height*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);
+ const W=rect.width,H=rect.height;ctx.clearRect(0,0,W,H);
+ const hud=$('chart-hud');if(chart.hoverX!=null)hud.classList.remove('visually-hidden');else hud.classList.add('visually-hidden');
+ if(!chartData.length){ctx.fillStyle='#888';ctx.font='13px system-ui';ctx.textAlign='center';ctx.fillText('No candle data',W/2,H/2);return}
+ const total=chartData.length,count=Math.min(chart.visible,total);
+ const end=Math.max(count,total-chart.offset),start=Math.max(0,end-count);const view=chartData.slice(start,end);
+ const volH=chart.vol?H*0.18:0,ph=H-volH-26,top=8;
+ const hi=Math.max(...view.map(r=>r[2])),lo=Math.min(...view.map(r=>r[3])),range=(hi-lo)||1;
+ const y=v=>top+(hi-v)/range*ph;
+ const step=(W-66)/view.length,cw=Math.max(1,Math.min(9,step*0.62));
+ const ind=indicators(view);
+ ctx.strokeStyle='rgba(128,140,160,.13)';ctx.lineWidth=1;ctx.font='10px system-ui';ctx.fillStyle='#888';ctx.textAlign='left';
+ for(let i=0;i<=4;i++){const val=hi-range*i/4,yy=top+ph*i/4;ctx.beginPath();ctx.moveTo(4,yy);ctx.lineTo(W-62,yy);ctx.stroke();ctx.fillText(priceFmt(val),W-58,yy+3)}
+ const drawLine=(arr,color)=>{if(!arr)return;ctx.strokeStyle=color;ctx.lineWidth=1.4;ctx.beginPath();let begun=false;view.forEach((r,i)=>{const v=arr[i];if(v==null){begun=false;return}const x=8+i*step+step/2,yy=y(v);if(!begun){ctx.moveTo(x,yy);begun=true}else ctx.lineTo(x,yy)});ctx.stroke()};
+ if(chart.ma7)drawLine(ind.ma7,'#f0b90b');if(chart.ma25)drawLine(ind.ma25,'#00f0ff');if(chart.ema99)drawLine(ind.ema99,'#b388ff');
+ view.forEach((r,i)=>{const x=8+i*step+step/2,up=r[4]>=r[1],col=up?'#0ecb81':'#f6465d';if(chart.mode==='candles'){ctx.strokeStyle=col;ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(x,y(r[2]));ctx.lineTo(x,y(r[3]));ctx.stroke();const a=y(Math.max(r[1],r[4])),b=y(Math.min(r[1],r[4]));ctx.fillRect(x-cw/2,a,cw,Math.max(1,b-a))}else{if(i===0)ctx.beginPath();else ctx.lineTo(x,y(r[4]));if(i===0)ctx.moveTo(x,y(r[4]))}if(chart.vol){const maxV=Math.max(...view.map(v=>v[5]))||1;ctx.fillStyle=up?'rgba(14,203,129,.35)':'rgba(246,70,93,.35)';const vh=(r[5]/maxV)*volH;ctx.fillRect(x-cw/2,H-20-vh,Math.max(1,cw),vh)}});
+ if(chart.mode==='area'){ctx.strokeStyle='#4c8dff';ctx.lineWidth=1.6;ctx.beginPath();view.forEach((r,i)=>{const x=8+i*step+step/2,yy=y(r[4]);i?ctx.lineTo(x,yy):ctx.moveTo(x,yy)});ctx.stroke()}
+ ctx.fillStyle='#888';ctx.textAlign='left';ctx.fillText(new Date(view[0][0]).toISOString().slice(5,16).replace('T',' '),4,H-5);ctx.textAlign='right';ctx.fillText(new Date(view.at(-1)[0]).toISOString().slice(5,16).replace('T',' '),W-62,H-5);
+ if(chart.hoverX!=null&&chart.hoverX>=8&&chart.hoverX<=W-62){const idx=Math.max(0,Math.min(view.length-1,Math.floor((chart.hoverX-8)/step)));const r=view[idx],x=8+idx*step+step/2;ctx.strokeStyle='rgba(200,210,230,.35)';ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(x,top);ctx.lineTo(x,H-20);ctx.stroke();ctx.setLineDash([]);
+  $('hud-time').textContent=new Date(r[0]).toISOString().slice(5,16).replace('T',' ');$('hud-o').textContent=priceFmt(r[1]);$('hud-h').textContent=priceFmt(r[2]);$('hud-l').textContent=priceFmt(r[3]);$('hud-c').textContent=priceFmt(r[4]);$('hud-chg').textContent=((r[4]-r[1])/r[1]*100).toFixed(2)+'%';$('hud-v').textContent=volFmt(r[5]);
+  const tip=$('chart-tooltip');tip.textContent=`${new Date(r[0]).toISOString().slice(0,16).replace('T',' ')} · O ${priceFmt(r[1])} H ${priceFmt(r[2])} L ${priceFmt(r[3])} C ${priceFmt(r[4])}`;tip.style.left=Math.min(x+12,W-240)+'px';tip.style.top='12px';tip.classList.add('visible')
+ }else $('chart-tooltip').classList.remove('visible');
+}
+
+async function refresh(){
+ try{
+  const [s,m]=await Promise.all([api('/api/status'),api('/api/market')]);
+  statusData=s;marketData=m;renderKpis(s);renderRisk(s);renderPositions(s);populateSymbols();renderPulse();loadChart();setDot(true);
+ }catch(e){setDot(false);$('connection').textContent='Offline · '+e.message}
+}
+async function control(path,msg){if(msg&&!confirm(msg))return;const st=$('control-status');st.textContent='Working…';try{const d=await api(path,{method:'POST'});st.textContent=d.message||d.error||'Done';await refresh()}catch(e){st.textContent=e.message}}
+$('entry-control').onclick=()=>control('/api/exit-only','Pause all new entries? Existing positions and stops stay active.');
+$('resume-control').onclick=()=>control('/api/resume','Resume trading? Requires a flat, reconciled account.');
+$('emergency-stop').onclick=()=>control('/api/emergency-stop','EMERGENCY STOP? This halts all new entries immediately.');
+$('refresh-market').onclick=()=>control('/api/refresh-market','Force a fresh market-data fetch?');
+$('symbol').onchange=e=>selectSymbol(e.target.value);
+document.querySelectorAll('[data-tf]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-tf]').forEach(x=>x.classList.remove('active'));b.classList.add('active');timeframe=b.dataset.tf;chart.offset=0;loadChart()});
+$('btn-mode-candles').onclick=()=>{chart.mode='candles';$('btn-mode-candles').classList.add('active');$('btn-mode-area').classList.remove('active');drawChart()};
+$('btn-mode-area').onclick=()=>{chart.mode='area';$('btn-mode-area').classList.add('active');$('btn-mode-candles').classList.remove('active');drawChart()};
+[['btn-ind-ma7','ma7'],['btn-ind-ma25','ma25'],['btn-ind-ema99','ema99'],['btn-ind-vol','vol']].forEach(([id,key])=>{$(id).onclick=()=>{chart[key]=!chart[key];$(id).classList.toggle('active',chart[key]);drawChart()}});
+const cvEl=$('price-chart-canvas');
+cvEl.addEventListener('mousemove',e=>{const r=cvEl.getBoundingClientRect();chart.hoverX=e.clientX-r.left;drawChart()});
+cvEl.addEventListener('mouseleave',()=>{chart.hoverX=null;drawChart()});
+cvEl.addEventListener('wheel',e=>{e.preventDefault();chart.visible=Math.max(15,Math.min(chartData.length||60,chart.visible+(e.deltaY>0?5:-5)));drawChart()},{passive:false});
+cvEl.addEventListener('mousedown',e=>{chart.drag=true;chart.dragX=e.clientX;chart.dragOffset=chart.offset});
+window.addEventListener('mouseup',()=>chart.drag=false);
+window.addEventListener('mousemove',e=>{if(chart.drag){const d=e.clientX-chart.dragX;chart.offset=Math.max(0,Math.min(chartData.length-chart.visible,chart.dragOffset-Math.round(d/(chartData.length||1)*10)));drawChart()}});
+window.addEventListener('resize',drawChart);
+refresh();setInterval(refresh,15000);setInterval(()=>{if(selectedSymbol)loadChart()},30000);
+</script></body></html>

@@ -149,8 +149,8 @@ def test_login_rejects_wrong_token(app_ctx):
         await client.start_server()
         try:
             resp = await client.post("/login", data={"token": "wrong"}, allow_redirects=False)
-            assert resp.status == 401
-            assert "Invalid dashboard token" in await resp.text()
+            assert resp.status == 303
+            assert resp.headers["Location"] == "/login?error=1"
             assert not resp.headers.getall("Set-Cookie", [])
         finally:
             await client.close()
@@ -316,6 +316,106 @@ def _fake_snapshot():
         "cache": "hit",
         "timeframe": "1h",
     }
+
+
+def test_all_dashboard_pages_are_served(app_ctx):
+    dash, _, _ = app_ctx
+    app = dash.create_app()
+    from aiohttp.test_utils import TestClient, TestServer
+
+    async def run():
+        client = TestClient(TestServer(app))
+        await client.start_server()
+        try:
+            resp = await client.post("/login", data={"token": "t" * 40}, allow_redirects=False)
+            assert resp.status == 303
+            for path in ("/", "/positions", "/history", "/strategy", "/logs"):
+                resp = await client.get(path)
+                assert resp.status == 200
+                assert "TRADING LAB" in await resp.text()
+            for asset in ("/assets/app.css", "/assets/app.js"):
+                assert (await client.get(asset)).status == 200
+        finally:
+            await client.close()
+
+    asyncio.run(run())
+
+
+def test_glossary_is_public(app_ctx):
+    dash, _, _ = app_ctx
+    app = dash.create_app()
+    from aiohttp.test_utils import TestClient, TestServer
+
+    async def run():
+        client = TestClient(TestServer(app))
+        await client.start_server()
+        try:
+            resp = await client.get("/terms")
+            assert resp.status == 200
+            assert "glossary" in (await resp.text()).lower()
+        finally:
+            await client.close()
+
+    asyncio.run(run())
+
+
+def test_candles_and_trades_endpoints(app_ctx):
+    dash, _, store = app_ctx
+    store.append_trade({"action": "CLOSE", "symbol": "BTC/USDT", "pnl": 12.5})
+
+    async def fake_snapshot(*a, **k):
+        return _fake_snapshot()
+
+    dash.market.snapshot = fake_snapshot
+    app = dash.create_app()
+    from aiohttp.test_utils import TestClient, TestServer
+
+    async def run():
+        client = TestClient(TestServer(app))
+        await client.start_server()
+        try:
+            resp = await client.get(
+                "/api/candles?symbol=BTC/USDT&timeframe=1h",
+                headers={"X-Dashboard-Token": "t" * 40},
+            )
+            assert resp.status == 200
+            body = await resp.json()
+            assert body["candles"][0]["close"] == 100.0
+
+            bad = await client.get(
+                "/api/candles?symbol=FAKE&timeframe=1h",
+                headers={"X-Dashboard-Token": "t" * 40},
+            )
+            assert bad.status == 400
+
+            trades = await client.get("/api/trades", headers={"X-Dashboard-Token": "t" * 40})
+            assert any(t["pnl"] == 12.5 for t in (await trades.json())["trades"])
+        finally:
+            await client.close()
+
+    asyncio.run(run())
+
+
+def test_exit_only_persists_entry_mode(app_ctx):
+    dash, risk, _ = app_ctx
+    app = dash.create_app()
+    from aiohttp.test_utils import TestClient, TestServer
+
+    async def run():
+        client = TestClient(TestServer(app))
+        await client.start_server()
+        try:
+            resp = await client.post(
+                "/api/exit-only", headers={"X-Dashboard-Token": "t" * 40}
+            )
+            assert resp.status == 200
+            assert (await resp.json())["entry_mode"] == "EXIT_ONLY"
+            # Regression: entry_mode() must handle the persisted {"mode": ...} dict.
+            assert risk.entry_mode() == "EXIT_ONLY"
+        finally:
+            await client.close()
+
+    asyncio.run(run())
 
 
 def test_same_origin_trusts_forwarded_host(app_ctx):
