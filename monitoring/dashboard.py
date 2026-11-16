@@ -138,8 +138,22 @@ class WebDashboard:
         origin = request.headers.get("Origin", "")
         if not origin:
             return True  # non-browser clients (e.g., curl) must still present the token
-        proto = request.headers.get("X-Forwarded-Proto", "").split(",")[0].strip() or request.scheme
-        return hmac.compare_digest(origin.rstrip("/"), f"{proto}://{request.host}".rstrip("/"))
+        # Behind Railway/reverse proxies the container may see an internal Host;
+        # prefer X-Forwarded-Host/Proto, then fall back to the request's own values.
+        proto = (
+            request.headers.get("X-Forwarded-Proto", "").split(",")[0].strip() or request.scheme
+        ).lower()
+        hosts = []
+        forwarded_host = request.headers.get("X-Forwarded-Host", "")
+        if forwarded_host:
+            hosts.append(forwarded_host.split(",")[0].strip())
+        hosts.append(request.host)
+        candidate = origin.rstrip("/").lower()
+        return any(
+            hmac.compare_digest(candidate, f"{proto}://{host}".rstrip("/").lower())
+            for host in hosts
+            if host
+        )
 
     @web.middleware
     async def _auth_middleware(self, request, handler):
@@ -158,7 +172,20 @@ class WebDashboard:
                 if is_page_get and "text/html" in accept:
                     raise self._secure(web.HTTPSeeOther("/login"))
                 return self._secure(web.json_response({"error": "Unauthorized"}, status=401))
-            if request.method not in {"GET", "HEAD", "OPTIONS"} and not self._same_origin(request):
+            # Login uses a single shared secret (no per-user account to log into),
+            # so login CSRF is not a risk; keep the check on state-changing endpoints.
+            needs_origin_check = (
+                request.method not in {"GET", "HEAD", "OPTIONS"} and not is_login
+            )
+            if needs_origin_check and not self._same_origin(request):
+                logger.warning(
+                    "origin check failed: origin=%r host=%r forwarded_host=%r proto=%r scheme=%r",
+                    request.headers.get("Origin", ""),
+                    request.host,
+                    request.headers.get("X-Forwarded-Host", ""),
+                    request.headers.get("X-Forwarded-Proto", ""),
+                    request.scheme,
+                )
                 return self._secure(web.json_response({"error": "Same-origin required"}, status=403))
         response = await handler(request)
         return self._secure(response)

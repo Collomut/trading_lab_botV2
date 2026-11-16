@@ -227,7 +227,8 @@ def test_browser_navigation_redirects_to_login(app_ctx):
     asyncio.run(run())
 
 
-def test_login_csrf_blocks_cross_origin(app_ctx):
+def test_login_ignores_origin_but_writes_are_protected(app_ctx):
+    """Login has no per-user account so it tolerates any Origin; real writes do not."""
     dash, _, _ = app_ctx
     app = dash.create_app()
     from aiohttp.test_utils import TestClient, TestServer
@@ -236,13 +237,50 @@ def test_login_csrf_blocks_cross_origin(app_ctx):
         client = TestClient(TestServer(app))
         await client.start_server()
         try:
-            resp = await client.post(
+            login = await client.post(
                 "/login",
                 data={"token": "t" * 40},
                 headers={"Origin": "http://evil.example"},
                 allow_redirects=False,
             )
-            assert resp.status == 403
+            assert login.status == 303
+
+            cookie = _session_cookie(login)
+            cross = await client.post(
+                "/api/emergency-stop",
+                headers={"Cookie": cookie, "Origin": "http://evil.example"},
+            )
+            assert cross.status == 403
+        finally:
+            await client.close()
+
+    asyncio.run(run())
+
+
+def test_same_origin_trusts_forwarded_host(app_ctx):
+    """Behind a reverse proxy the public host arrives in X-Forwarded-Host."""
+    dash, _, _ = app_ctx
+    app = dash.create_app()
+    from aiohttp.test_utils import TestClient, TestServer
+
+    async def run():
+        client = TestClient(TestServer(app))
+        await client.start_server()
+        try:
+            login = await client.post(
+                "/login", data={"token": "t" * 40}, allow_redirects=False
+            )
+            cookie = _session_cookie(login)
+            resp = await client.post(
+                "/api/emergency-stop",
+                headers={
+                    "Cookie": cookie,
+                    "Origin": "https://public.example",
+                    "X-Forwarded-Host": "public.example",
+                    "X-Forwarded-Proto": "https",
+                },
+            )
+            assert resp.status == 200
         finally:
             await client.close()
 
